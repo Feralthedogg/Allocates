@@ -1,10 +1,3 @@
-아래는 **Slab Allocator**와 **Pool Allocator**에 대한 README 파일 초안입니다.
-이 프로젝트가 학습 목적으로 제작되었으며, 향후 더 많은 기능이 추가될 것임을 명시했습니다.
-
----
-
-# 🚀 Slab & Pool Allocator
-
 ## 📌 Overview
 This project is designed for studying and optimizing **memory allocation techniques**.
 It includes implementations of **Slab Allocator** and **Pool Allocator**, both of which provide efficient memory management compared to traditional `malloc/free`.
