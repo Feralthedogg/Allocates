@@ -1,4 +1,4 @@
-// bench.c
+// bench_pool.c
 
 #include <stdio.h>
 #include <stdlib.h>

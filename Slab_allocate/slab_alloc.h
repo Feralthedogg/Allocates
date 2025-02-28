@@ -1,3 +1,5 @@
+// slab_alloc.h
+
 #ifndef SLAB_ALLOC_H
 #define SLAB_ALLOC_H
 
@@ -5,29 +7,31 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include <stddef.h>
-#include <windows.h>  // For CRITICAL_SECTION and Interlocked functions
+#include <windows.h>
 
 /**
  * Slab structure
  *
- * This slab allocator provides fixed-size object allocation from a pre-allocated
- * contiguous memory region. Each object reserves its first sizeof(uintptr_t) bytes
- * to store the address of the next free object.
+ * This slab allocator allocates fixed-size objects from a contiguous memory region
+ * created via memory mapping (Windows equivalent of mmap). Each object reserves its
+ * first HEADER_SIZE bytes to store a pointer to the next free object.
  */
 typedef struct Slab {
-    uintptr_t memory;       // Base address of the allocated slab memory.
-    size_t object_size;     // Size of each object (>= sizeof(uintptr_t) and 16-byte aligned).
-    size_t total_objects;   // Total number of objects in the slab.
-    uintptr_t free_list;    // Address of the first free object.
-    CRITICAL_SECTION lock;  // Synchronization primitive for thread safety.
+    unsigned char* memory;       // Base address of the memory mapped slab.
+    size_t object_size;          // Size of each object (>= sizeof(void*) and 16-byte aligned).
+    size_t total_objects;        // Total number of objects in the slab.
+    void* free_list;             // Pointer to the first node in the free list.
+    HANDLE mappingHandle;        // Handle used for memory mapping (mmap equivalent).
+    CRITICAL_SECTION lock;       // Synchronization object for thread safety during reset/destroy.
 } Slab;
+
+#define HEADER_SIZE 32  // Reserved bytes at the start of each object for storing the next pointer.
 
 /**
  * slab_init
- * Initializes the slab allocator by allocating a contiguous memory region (the slab)
- * and setting up the free list for fixed-size object allocation.
+ * Initializes the slab allocator by creating a memory mapping and linking all objects
+ * into a free list.
  *
  * @param slab           Pointer to a Slab structure.
  * @param total_objects  Total number of objects to allocate.
@@ -41,13 +45,13 @@ int slab_init(Slab *slab, size_t total_objects, size_t object_size);
  * Allocates an object from the slab.
  *
  * @param slab Pointer to the Slab structure.
- * @return Pointer to the allocated object, or NULL if no free objects remain.
+ * @return Pointer to the allocated object (offset by HEADER_SIZE), or NULL if no object is available.
  */
 void* slab_alloc(Slab *slab);
 
 /**
  * slab_free
- * Frees a previously allocated object by pushing it onto the free list.
+ * Returns a previously allocated object back to the free list.
  *
  * @param slab Pointer to the Slab structure.
  * @param ptr  Pointer to the object to free.
@@ -56,8 +60,8 @@ void slab_free(Slab *slab, void* ptr);
 
 /**
  * slab_reset
- * Resets the slab allocator by rebuilding the free list for all objects and
- * clearing the slab memory using a SIMD/AVX optimized memset.
+ * Rebuilds the free list for all objects in the slab and clears the slab memory
+ * using a SIMD/AVX optimized memset.
  *
  * @param slab Pointer to the Slab structure.
  */
@@ -65,8 +69,8 @@ void slab_reset(Slab *slab);
 
 /**
  * slab_destroy
- * Destroys the slab allocator by releasing the allocated memory and cleaning up
- * synchronization primitives.
+ * Destroys the slab allocator by unmapping the memory, closing the mapping handle,
+ * and cleaning up the synchronization objects.
  *
  * @param slab Pointer to the Slab structure.
  */
